@@ -104,10 +104,23 @@ export function decryptRsaEncString(enc: string, privateKeyDer: Buffer): Buffer 
   const dotIdx = enc.indexOf('.');
   if (dotIdx === -1) throw new Error(`Invalid RSA EncString: ${enc.substring(0, 40)}`);
   const type = parseInt(enc.substring(0, dotIdx), 10);
-  // type 4 = Rsa2048_OaepSha1_B64, type 6 = Rsa2048_OaepSha256_B64
-  if (type !== 4 && type !== 6) throw new Error(`Unsupported RSA EncString type ${type}`);
+  // Bitwarden EncString RSA types (no-HMAC variants, supported in v0.1.0):
+  //   3 = Rsa2048_OaepSha256_B64  (SHA-256, format: "3.<ct_b64>")
+  //   4 = Rsa2048_OaepSha1_B64    (SHA-1,   format: "4.<ct_b64>")  — most common in Vaultwarden
+  // HMAC variants (5 = SHA256+HMAC, 6 = SHA1+HMAC) have a pipe-separated payload and are
+  // not needed for personal vault org keys in Vaultwarden v1.36.x — throw a clear error if seen.
+  if (type === 5 || type === 6) {
+    throw new Error(
+      `RSA EncString type ${type} (HMAC variant) is not supported in v0.1.0. ` +
+      'Vaultwarden org keys typically use type 4. Please report this to Brian.',
+    );
+  }
+  if (type !== 3 && type !== 4) {
+    throw new Error(`Unsupported RSA EncString type ${type} (expected 3 or 4)`);
+  }
+  // For types 3 and 4, the payload is just the RSA ciphertext (no HMAC, no pipe separators)
   const ct = Buffer.from(enc.substring(dotIdx + 1), 'base64');
-  const oaepHash = type === 4 ? 'sha1' : 'sha256';
+  const oaepHash = type === 3 ? 'sha256' : 'sha1';
   const privateKey = crypto.createPrivateKey({ key: privateKeyDer, format: 'der', type: 'pkcs8' });
   return crypto.privateDecrypt(
     { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash },
