@@ -41,6 +41,7 @@ function makeCipher(opts: {
   collectionIds: string[];
   symKey: SymKey;
   password?: string;
+  totp?: string;
   notes?: string;
   mcpType?: string;
   hiddenField?: { name: string; value: string };
@@ -65,7 +66,7 @@ function makeCipher(opts: {
     login: opts.type === 1 ? {
       username: null,
       password: opts.password ? enc(opts.password, opts.symKey) : null,
-      totp: null,
+      totp: opts.totp ? enc(opts.totp, opts.symKey) : null,
       uris: null,
     } : null,
     secureNote: opts.type === 2 ? { type: 0 } : null,
@@ -164,6 +165,43 @@ describe('Safety Claim 1 — list_vault_items and get_vault_metadata never expos
     if (detail.custom_fields) {
       expect(Object.values(detail.custom_fields)).not.toContain('HIDDEN_SECRET_VALUE');
     }
+  });
+
+  it('password type items: list_vault_items has no notes_preview, get_vault_metadata has no notes', async () => {
+    const symKey = makeSymKey();
+    const cipher = makeCipher({
+      id: 'c-pw', name: 'db-password', type: 2, collectionIds: [EXPOSED_ID],
+      symKey, notes: 'PLAINTEXT_PASSWORD_SECRET', mcpType: 'password',
+    });
+    const client = setupClient([cipher], symKey);
+
+    const items = await client.listItems();
+    expect(items).toHaveLength(1);
+    expect(items[0].notes_preview).toBeUndefined();
+    const serialized = JSON.stringify(items[0]);
+    expect(serialized).not.toContain('PLAINTEXT_PASSWORD_SECRET');
+
+    const detail = await client.getItemDetail('db-password');
+    expect(detail.notes).toBeUndefined();
+    const detailSerialized = JSON.stringify(detail);
+    expect(detailSerialized).not.toContain('PLAINTEXT_PASSWORD_SECRET');
+  });
+
+  it('login items: get_vault_metadata returns has_password/has_totp flags but never the values', async () => {
+    const symKey = makeSymKey();
+    const cipher = makeCipher({
+      id: 'c-login', name: 'github-login', type: 1, collectionIds: [EXPOSED_ID],
+      symKey, password: 'PLAINTEXT_LOGIN_PASSWORD',
+      totp: 'otpauth://totp/github?secret=TOTPSEEDVALUE&issuer=GitHub',
+    });
+    const client = setupClient([cipher], symKey);
+
+    const detail = await client.getItemDetail('github-login');
+    expect(detail.has_password).toBe(true);
+    expect(detail.has_totp).toBe(true);
+    const serialized = JSON.stringify(detail);
+    expect(serialized).not.toContain('PLAINTEXT_LOGIN_PASSWORD');
+    expect(serialized).not.toContain('TOTPSEEDVALUE');
   });
 });
 

@@ -783,7 +783,7 @@ export class VaultClient {
   async saveGeneratedSecret(input: {
     name: string;
     value: string;
-    type: 'password' | 'api-key' | 'note';
+    type: 'password' | 'api-key';
     notes?: string;
     used_in?: string;
     expires_in_days?: number;
