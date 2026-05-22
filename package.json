@@ -1,0 +1,63 @@
+{
+  "name": "@aiwerk/mcp-server-vault",
+  "version": "0.1.0",
+  "description": "Bitwarden/Vaultwarden MCP server — BYOK vault access with 6 tools, Send-based reveal, TOTP, and safe agent-write",
+  "type": "module",
+  "main": "dist/src/server.js",
+  "bin": {
+    "mcp-server-vault": "dist/src/server.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "gen-version": "node scripts/gen-version.mjs",
+    "prebuild": "npm run gen-version",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/server.js",
+    "predev": "npm run gen-version",
+    "dev": "tsc --watch",
+    "pretest": "npm run gen-version && bash -c 'pkill -9 -f \"[n]ode.*vitest\" 2>/dev/null; pkill -9 -f \"[e]sbuild.*--service\" 2>/dev/null; true'",
+    "test": "vitest run",
+    "posttest": "bash -c 'pkill -9 -f \"[n]ode.*vitest\" 2>/dev/null; pkill -9 -f \"[e]sbuild.*--service\" 2>/dev/null; true'",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "bitwarden",
+    "vaultwarden",
+    "vault",
+    "secrets"
+  ],
+  "author": "AIWerk <kontakt@aiwerk.ch>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AIWerk/mcp-server-vault.git"
+  },
+  "homepage": "https://aiwerkmcp.com",
+  "bugs": {
+    "url": "https://github.com/AIWerk/mcp-server-vault/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.19.1",
+    "argon2": "^0.44.0",
+    "pino": "^9.6.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.1"
+  }
+}
