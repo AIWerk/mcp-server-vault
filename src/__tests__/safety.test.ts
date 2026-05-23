@@ -78,7 +78,10 @@ function makeCipher(opts: {
 
 function setupClient(ciphers: Record<string, unknown>[], orgSymKey: SymKey): VaultClient {
   const client = new VaultClient({
-    apiBase: 'https://pass.example.com',
+    region: 'self-hosted',
+    identityBaseUrl: 'https://pass.example.com/identity',
+    apiBaseUrl: 'https://pass.example.com/api',
+    webVaultUrl: 'https://pass.example.com',
     clientId: 'user.test',
     clientSecret: 'secret',
     masterPassword: 'pass',
@@ -254,7 +257,10 @@ describe('Safety Claim 3 — no mutating tool names exposed to agent', () => {
   it('no tool name matches update_*, delete_*, change_*, or set_*', () => {
     const mockClient = {
       config: {
-        apiBase: 'https://pass.example.com',
+        region: 'self-hosted' as const,
+        identityBaseUrl: 'https://pass.example.com/identity',
+        apiBaseUrl: 'https://pass.example.com/api',
+        webVaultUrl: 'https://pass.example.com',
         clientId: 'test', clientSecret: 'test', masterPassword: 'test',
         exposedCollection: 'mcp-exposed', agentCreatedCollection: 'mcp-agent-created',
         timeoutMs: 15000, dryRun: false, readOnly: false,

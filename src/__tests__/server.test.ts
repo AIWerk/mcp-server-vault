@@ -133,7 +133,10 @@ describe('createServer', () => {
   it('returns a server with exactly 6 tools', () => {
     const mockClient = {
       config: {
-        apiBase: 'https://pass.example.com',
+        region: 'self-hosted' as const,
+        identityBaseUrl: 'https://pass.example.com/identity',
+        apiBaseUrl: 'https://pass.example.com/api',
+        webVaultUrl: 'https://pass.example.com',
         clientId: 'user.test',
         clientSecret: 'secret',
         masterPassword: 'pass',

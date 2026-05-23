@@ -80,8 +80,46 @@ export class VaultTimeoutError extends Error {
 // Config
 // ---------------------------------------------------------------------------
 
+export type VaultRegion = 'self-hosted' | 'us' | 'eu';
+
+interface ResolvedUrls {
+  identityBaseUrl: string;
+  apiBaseUrl: string;
+  webVaultUrl: string;
+}
+
+export function resolveRegionUrls(region: VaultRegion, apiBase: string): ResolvedUrls {
+  switch (region) {
+    case 'us':
+      return {
+        identityBaseUrl: 'https://identity.bitwarden.com',
+        apiBaseUrl: 'https://api.bitwarden.com',
+        webVaultUrl: 'https://vault.bitwarden.com',
+      };
+    case 'eu':
+      return {
+        identityBaseUrl: 'https://identity.bitwarden.eu',
+        apiBaseUrl: 'https://api.bitwarden.eu',
+        webVaultUrl: 'https://vault.bitwarden.eu',
+      };
+    case 'self-hosted':
+    default: {
+      if (!apiBase) throw new VaultConfigError('VAULT_API_BASE required for self-hosted');
+      const base = apiBase.replace(/\/$/, '');
+      return {
+        identityBaseUrl: `${base}/identity`,
+        apiBaseUrl: `${base}/api`,
+        webVaultUrl: base,
+      };
+    }
+  }
+}
+
 export interface VaultConfig {
-  apiBase: string;
+  region: VaultRegion;
+  identityBaseUrl: string;
+  apiBaseUrl: string;
+  webVaultUrl: string;
   clientId: string;
   clientSecret: string;
   masterPassword: string;
@@ -99,8 +137,15 @@ export function loadConfig(): VaultConfig {
     if (!v) missing.push(name);
     return v ?? '';
   };
+  const opt = (name: string): string => process.env[name] ?? '';
 
-  const apiBase = req('VAULT_API_BASE');
+  const region = (opt('VAULT_REGION') || 'self-hosted') as VaultRegion;
+  if (!['self-hosted', 'us', 'eu'].includes(region)) {
+    throw new VaultConfigError(`Invalid VAULT_REGION "${region}" — must be self-hosted, us, or eu`);
+  }
+
+  // VAULT_API_BASE only required for self-hosted
+  const apiBase = region === 'self-hosted' ? req('VAULT_API_BASE') : opt('VAULT_API_BASE');
   const clientId = req('VAULT_CLIENT_ID');
   const clientSecret = req('VAULT_CLIENT_SECRET');
   const masterPassword = req('VAULT_MASTER_PASSWORD');
@@ -109,14 +154,17 @@ export function loadConfig(): VaultConfig {
     throw new VaultConfigError(`Missing required env vars: ${missing.join(', ')}`);
   }
 
+  const urls = resolveRegionUrls(region, apiBase);
+
   return {
-    apiBase: apiBase.replace(/\/$/, ''),
+    region,
+    ...urls,
     clientId,
     clientSecret,
     masterPassword,
-    exposedCollection: process.env.VAULT_EXPOSED_COLLECTION ?? 'mcp-exposed',
-    agentCreatedCollection: process.env.VAULT_AGENT_CREATED_COLLECTION ?? 'mcp-agent-created',
-    timeoutMs: Number(process.env.VAULT_API_TIMEOUT_MS ?? 15000),
+    exposedCollection: opt('VAULT_EXPOSED_COLLECTION') || 'mcp-exposed',
+    agentCreatedCollection: opt('VAULT_AGENT_CREATED_COLLECTION') || 'mcp-agent-created',
+    timeoutMs: Number(opt('VAULT_API_TIMEOUT_MS') || 15000),
     dryRun: process.env.DRY_RUN === '1',
     readOnly: process.env.READ_ONLY === '1',
   };
@@ -290,7 +338,7 @@ export class VaultClient {
   // -------------------------------------------------------------------------
 
   private async authenticate(): Promise<void> {
-    const url = `${this.config.apiBase}/identity/connect/token`;
+    const url = `${this.config.identityBaseUrl}/connect/token`;
     const body = new URLSearchParams({
       grant_type: 'client_credentials',
       scope: 'api',
@@ -329,13 +377,13 @@ export class VaultClient {
 
   private async apiGet<T>(path: string): Promise<T> {
     const token = await this.ensureToken();
-    const res = await this.doFetch(`${this.config.apiBase}/api${path}`, {
+    const res = await this.doFetch(`${this.config.apiBaseUrl}${path}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
     if (res.status === 401) {
       // Token expired mid-session, re-auth once
       await this.authenticate();
-      const res2 = await this.doFetch(`${this.config.apiBase}/api${path}`, {
+      const res2 = await this.doFetch(`${this.config.apiBaseUrl}${path}`, {
         headers: { Authorization: `Bearer ${this.accessToken!}`, Accept: 'application/json' },
       });
       if (!res2.ok) throw new VaultConnectionError(`API ${path} returned ${res2.status}`);
@@ -347,7 +395,7 @@ export class VaultClient {
 
   private async apiPost<T>(path: string, body: unknown): Promise<T> {
     const token = await this.ensureToken();
-    const res = await this.doFetch(`${this.config.apiBase}/api${path}`, {
+    const res = await this.doFetch(`${this.config.apiBaseUrl}${path}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -366,7 +414,7 @@ export class VaultClient {
 
   private async apiDelete(path: string): Promise<void> {
     const token = await this.ensureToken();
-    const res = await this.doFetch(`${this.config.apiBase}/api${path}`, {
+    const res = await this.doFetch(`${this.config.apiBaseUrl}${path}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -733,7 +781,7 @@ export class VaultClient {
       );
       const auditId = generateAuditId();
       return {
-        send_url: `${this.config.apiBase}/#/send/DRY_RUN_ID/DRY_RUN_KEY`,
+        send_url: `${this.config.webVaultUrl}/#/send/DRY_RUN_ID/DRY_RUN_KEY`,
         expires_at: deletionDate,
         max_views: actualMaxViews,
         delivery,
@@ -753,7 +801,7 @@ export class VaultClient {
     };
 
     const created = await this.apiPost<{ id: string; accessId: string }>('/sends', sendPayload);
-    const sendUrl = buildSendUrl(this.config.apiBase, created.accessId, keyMaterial);
+    const sendUrl = buildSendUrl(this.config.webVaultUrl, created.accessId, keyMaterial);
 
     const auditId = generateAuditId();
     log.info({ event: 'vault_reveal_sent', name, field, delivery, auditId, sendId: created.id }, 'Send created');
@@ -898,7 +946,7 @@ export class VaultClient {
       const latency = Date.now() - start;
       return {
         status: 'error',
-        vault_url: this.config.apiBase,
+        vault_url: this.config.apiBaseUrl,
         api_version: apiVersion,
         authenticated,
         exposed_collection_visible: false,
@@ -922,7 +970,7 @@ export class VaultClient {
 
     return {
       status: degraded ? 'degraded' : 'ok',
-      vault_url: this.config.apiBase,
+      vault_url: this.config.apiBaseUrl,
       api_version: apiVersion,
       authenticated,
       exposed_collection_visible: !!this.collectionIds.exposed,
