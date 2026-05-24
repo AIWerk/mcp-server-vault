@@ -191,7 +191,8 @@ interface SyncProfile {
   email: string;
   key: string;     // AES EncString — protected vault symkey
   privateKey: string;  // AES EncString — encrypted RSA private key DER
-  kdfType: 0 | 1;
+  kdf?: 0 | 1;         // Vaultwarden + Bitwarden Cloud field name (camelCase rename_all)
+  kdfType?: 0 | 1;     // legacy alias — kept for safety
   kdfIterations: number;
   kdfMemory?: number;
   kdfParallelism?: number;
@@ -438,7 +439,7 @@ export class VaultClient {
 
   private async initializeKeys(profile: SyncProfile): Promise<void> {
     const kdf: KdfSettings = {
-      kdfType: profile.kdfType,
+      kdfType: (profile.kdf ?? profile.kdfType ?? 0) as 0 | 1,
       kdfIterations: profile.kdfIterations,
       kdfMemory: profile.kdfMemory,
       kdfParallelism: profile.kdfParallelism,

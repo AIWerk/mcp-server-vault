@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] — 2026-05-24
+
+### Fixed
+- `SyncProfile.kdf` field added — Vaultwarden and Bitwarden Cloud send `kdf` (not `kdfType`) in `/api/sync` profile; absence caused PBKDF2 users to fall into Argon2id branch → "Time cost is too small" error
+- `initializeKeys` now resolves `profile.kdf ?? profile.kdfType ?? 0`; legacy `kdfType` alias kept for safety
+- 5 new KDF field-mapping tests covering all resolution cases (65 total)
+
 ## [0.1.2] — 2026-05-24
 
 ### Fixed
