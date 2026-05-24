@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-05-24
+
+### Fixed
+- Auth `client_credentials` payload now includes `deviceType: '14'`, `deviceIdentifier` (stable UUID per VaultClient instance), `deviceName: 'aiwerk-mcp-server-vault'` — required by Vaultwarden 1.32+ and Bitwarden Cloud; absence caused 400 Bad Request in production
+- `Bitwarden-Client-Version: 2026.1.0` header added to token request — required by Vaultwarden 1.36.x
+- 2 new auth tests: device fields present + deviceIdentifier stability across re-auths (60 total)
+
 ## [0.1.1] — 2026-05-24
 
 ### Added

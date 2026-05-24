@@ -313,6 +313,9 @@ export class VaultClient {
     agentCreated: null,
   };
   private initialized = false;
+  // Stable per-instance device ID — Vaultwarden 1.32+ and Bitwarden Cloud require
+  // deviceIdentifier to be non-blank in client_credentials auth payloads.
+  private readonly deviceIdentifier = crypto.randomUUID();
 
   constructor(public readonly config: VaultConfig) {}
 
@@ -344,11 +347,17 @@ export class VaultClient {
       scope: 'api',
       client_id: this.config.clientId,
       client_secret: this.config.clientSecret,
+      deviceType: '14',  // 14 = SDK — required by Vaultwarden 1.32+ and Bitwarden Cloud
+      deviceIdentifier: this.deviceIdentifier,
+      deviceName: 'aiwerk-mcp-server-vault',
     });
 
     const res = await this.doFetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Bitwarden-Client-Version': '2026.1.0',
+      },
       body: body.toString(),
     });
 
