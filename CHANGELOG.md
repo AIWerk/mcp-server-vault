@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] — 2026-05-24
+
+### Fixed
+- Vaultwarden 1.36.0 omits KDF fields from `/api/sync` profile — `initializeKeys` now calls `POST /identity/accounts/prelogin` when `kdfIterations` is absent; `kdfInfo` cached per instance to avoid redundant calls
+- `profile.kdf` / `profile.kdfType` fallback retained for servers that do include KDF in sync profile
+- 2 new prelogin fallback tests: response shape parse + kdfInfo caching across re-auths (67 total)
+
 ## [0.1.3] — 2026-05-24
 
 ### Fixed

@@ -317,6 +317,9 @@ export class VaultClient {
   // Stable per-instance device ID — Vaultwarden 1.32+ and Bitwarden Cloud require
   // deviceIdentifier to be non-blank in client_credentials auth payloads.
   private readonly deviceIdentifier = crypto.randomUUID();
+  // Cached KDF settings — populated via prelogin() when sync profile omits them
+  // (Vaultwarden 1.36.0 does not include KDF fields in /api/sync profile).
+  private kdfInfo: KdfSettings | null = null;
 
   constructor(public readonly config: VaultConfig) {}
 
@@ -385,6 +388,29 @@ export class VaultClient {
     return this.accessToken!;
   }
 
+  private async prelogin(email: string): Promise<KdfSettings> {
+    const res = await this.doFetch(`${this.config.identityBaseUrl}/accounts/prelogin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      throw new VaultAuthError(`prelogin failed: ${res.status} ${await res.text()}`);
+    }
+    const data = await res.json() as {
+      kdf: 0 | 1;
+      kdfIterations: number;
+      kdfMemory?: number | null;
+      kdfParallelism?: number | null;
+    };
+    return {
+      kdfType: data.kdf,
+      kdfIterations: data.kdfIterations,
+      kdfMemory: data.kdfMemory ?? undefined,
+      kdfParallelism: data.kdfParallelism ?? undefined,
+    };
+  }
+
   private async apiGet<T>(path: string): Promise<T> {
     const token = await this.ensureToken();
     const res = await this.doFetch(`${this.config.apiBaseUrl}${path}`, {
@@ -438,7 +464,12 @@ export class VaultClient {
   // -------------------------------------------------------------------------
 
   private async initializeKeys(profile: SyncProfile): Promise<void> {
-    const kdf: KdfSettings = {
+    // Vaultwarden 1.36.0 omits KDF fields from /api/sync profile; fetch via prelogin instead.
+    // profile.kdf / profile.kdfType fallback retained for servers that do include them.
+    if (profile.kdfIterations == null && !this.kdfInfo) {
+      this.kdfInfo = await this.prelogin(profile.email);
+    }
+    const kdf: KdfSettings = this.kdfInfo ?? {
       kdfType: (profile.kdf ?? profile.kdfType ?? 0) as 0 | 1,
       kdfIterations: profile.kdfIterations,
       kdfMemory: profile.kdfMemory,
