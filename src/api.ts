@@ -965,6 +965,108 @@ export class VaultClient {
     return { saved_as: input.name, expires_at: expiresAt, collection: 'mcp-agent-created', audit_id: auditId };
   }
 
+  async saveLoginItem(input: {
+    name: string;
+    username?: string;
+    password?: string;
+    uri?: string;
+    totp?: string;
+    notes?: string;
+    used_in?: string;
+    expires_in_days?: number;
+  }): Promise<SaveSecretResult> {
+    // READ_ONLY wins over DRY_RUN
+    if (this.config.readOnly) {
+      throw new VaultWriteForbidden('save_login_item blocked — server started with READ_ONLY=1');
+    }
+
+    // A login item is meaningless without at least a username or a password.
+    if (!input.username && !input.password) {
+      throw new VaultPayloadTooLarge('save_login_item requires at least one of "username" or "password"');
+    }
+
+    if (input.password && input.password.length > 4096) {
+      throw new VaultPayloadTooLarge(`Password length ${input.password.length} exceeds 4096 char limit`);
+    }
+
+    await this.initialize();
+
+    if (!this.collectionIds.agentCreated) {
+      throw new VaultCollectionMissing(
+        `Collection "${this.config.agentCreatedCollection}" not found in vault. Create it first via Vaultwarden UI.`,
+      );
+    }
+
+    // Get the org ID for the agent-created collection
+    const agentCol = this.syncData!.collections.find(c => c.id === this.collectionIds.agentCreated);
+    if (!agentCol) throw new VaultCollectionMissing('mcp-agent-created collection metadata not found');
+    const orgId = agentCol.organizationId;
+    const orgSymKey = this.orgSymKeys.get(orgId);
+    if (!orgSymKey) throw new VaultAuthError(`No sym key for org ${orgId}`);
+
+    // Check name collision in mcp-agent-created
+    const existing = this.syncData!.ciphers.find(c => {
+      if (!c.collectionIds.includes(this.collectionIds.agentCreated!)) return false;
+      if (c.deletedDate) return false;
+      const sk = this.getSymKeyForCipher(c);
+      return this.decryptStr(c.name, sk) === input.name;
+    });
+    if (existing) throw new VaultNameCollision(`Item "${input.name}" already exists in mcp-agent-created`);
+
+    const now = new Date().toISOString();
+    const expiresInDays = Math.min(Math.max(input.expires_in_days ?? 30, 1), 365);
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+    const auditId = generateAuditId();
+
+    // Build encrypted custom fields (login items carry no mcp-type — type 1 is self-describing)
+    const fields = [
+      { name: 'mcp-created-by', value: 'mcp-server-vault' },
+      { name: 'mcp-created-at', value: now },
+      { name: 'mcp-expires-at', value: expiresAt },
+      ...(input.used_in ? [{ name: 'mcp-used-in', value: input.used_in }] : []),
+    ].map(f => ({
+      name: encryptAesCbc256(f.name, orgSymKey),
+      value: encryptAesCbc256(f.value, orgSymKey),
+      type: 0,
+    }));
+
+    const encName = encryptAesCbc256(input.name, orgSymKey);
+    const encNotes = input.notes ? encryptAesCbc256(input.notes, orgSymKey) : null;
+
+    if (this.config.dryRun) {
+      log.info(
+        { event: 'dry_run_save_login', name: input.name, hasUsername: !!input.username, hasPassword: !!input.password, hasTotp: !!input.totp, hasUri: !!input.uri, expiresAt, auditId },
+        'DRY_RUN: would create login cipher',
+      );
+      return { saved_as: input.name, expires_at: expiresAt, collection: 'mcp-agent-created', audit_id: auditId };
+    }
+
+    const cipherPayload = {
+      cipher: {
+        type: 1,  // login
+        organizationId: orgId,
+        name: encName,
+        notes: encNotes,
+        fields,
+        login: {
+          username: input.username ? encryptAesCbc256(input.username, orgSymKey) : null,
+          password: input.password ? encryptAesCbc256(input.password, orgSymKey) : null,
+          totp: input.totp ? encryptAesCbc256(input.totp, orgSymKey) : null,
+          uris: input.uri ? [{ uri: encryptAesCbc256(input.uri, orgSymKey), match: null }] : null,
+        },
+      },
+      collectionIds: [this.collectionIds.agentCreated],
+    };
+
+    await this.apiPost('/ciphers/create', cipherPayload);
+
+    // Refetch sync so the new item is visible
+    await this.refetchSync();
+
+    log.info({ event: 'vault_login_saved', name: input.name, hasTotp: !!input.totp, expiresAt, auditId }, 'Login item saved');
+    return { saved_as: input.name, expires_at: expiresAt, collection: 'mcp-agent-created', audit_id: auditId };
+  }
+
   async healthCheck(): Promise<HealthResult> {
     const start = Date.now();
     let authenticated = false;

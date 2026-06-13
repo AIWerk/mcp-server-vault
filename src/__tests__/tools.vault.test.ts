@@ -20,6 +20,7 @@ import {
   revealSecretViaSend,
   getTotpCode,
   saveGeneratedSecret,
+  saveLoginItem,
   healthCheck,
 } from '../tools/vault.js';
 
@@ -51,6 +52,7 @@ function makeMock(overrides: Partial<Record<string, unknown>> = {}): VaultClient
     revealViaSend: vi.fn(),
     getTotpCode: vi.fn(),
     saveGeneratedSecret: vi.fn(),
+    saveLoginItem: vi.fn(),
     healthCheck: vi.fn(),
     initialize: vi.fn(),
     refetchSync: vi.fn(),
@@ -351,6 +353,90 @@ describe('save_generated_secret', () => {
       const r = toolError(err);
       expect(r.isError).toBe(true);
       expect(r.content[0].text).toMatch(/mcp-agent-created/);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// save_login_item
+// ---------------------------------------------------------------------------
+
+describe('save_login_item', () => {
+  it('returns save result on success', async () => {
+    const mockResult = {
+      saved_as: 'smallinvoice_login',
+      expires_at: '2026-07-12T00:00:00Z',
+      collection: 'mcp-agent-created' as const,
+      audit_id: 'audit-login-1',
+    };
+    const client = makeMock({ saveLoginItem: vi.fn().mockResolvedValue(mockResult) });
+    const result = await saveLoginItem(client, {
+      name: 'smallinvoice_login',
+      username: 'attila@aiwerk.ch',
+      password: 'hunter2',
+      uri: 'https://app.smallinvoice.com/login',
+    });
+    expect(result.saved_as).toBe('smallinvoice_login');
+    expect(result.collection).toBe('mcp-agent-created');
+    expect(result.audit_id).toBeTruthy();
+  });
+
+  it('forwards all login fields to the client', async () => {
+    const spy = vi.fn().mockResolvedValue({
+      saved_as: 'x', expires_at: '2026-07-12T00:00:00Z', collection: 'mcp-agent-created' as const, audit_id: 'a',
+    });
+    const client = makeMock({ saveLoginItem: spy });
+    await saveLoginItem(client, {
+      name: 'x',
+      username: 'u',
+      password: 'p',
+      uri: 'https://e.com',
+      totp: 'JBSWY3DPEHPK3PXP',
+      notes: 'n',
+      used_in: 'ctx',
+      expires_in_days: 90,
+    });
+    expect(spy).toHaveBeenCalledWith({
+      name: 'x',
+      username: 'u',
+      password: 'p',
+      uri: 'https://e.com',
+      totp: 'JBSWY3DPEHPK3PXP',
+      notes: 'n',
+      used_in: 'ctx',
+      expires_in_days: 90,
+    });
+  });
+
+  it('propagates VaultNameCollision', async () => {
+    const client = makeMock({
+      saveLoginItem: vi.fn().mockRejectedValue(
+        new VaultNameCollision('Item "dup" already exists'),
+      ),
+    });
+    try {
+      await saveLoginItem(client, { name: 'dup', username: 'u', password: 'p' });
+      expect.fail('should have thrown');
+    } catch (err) {
+      const r = toolError(err);
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toMatch(/different name/i);
+    }
+  });
+
+  it('propagates VaultWriteForbidden (READ_ONLY)', async () => {
+    const client = makeMock({
+      saveLoginItem: vi.fn().mockRejectedValue(
+        new VaultWriteForbidden('save_login_item blocked — READ_ONLY=1'),
+      ),
+    });
+    try {
+      await saveLoginItem(client, { name: 'x', password: 'p' });
+      expect.fail('should have thrown');
+    } catch (err) {
+      const r = toolError(err);
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toMatch(/READ_ONLY/);
     }
   });
 });

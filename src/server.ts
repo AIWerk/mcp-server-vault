@@ -27,6 +27,7 @@ import {
   revealSecretViaSendInput, revealSecretViaSend,
   getTotpCodeInput, getTotpCode,
   saveGeneratedSecretInput, saveGeneratedSecret,
+  saveLoginItemInput, saveLoginItem,
   healthCheckInput, healthCheck,
 } from './tools/vault.js';
 
@@ -158,6 +159,24 @@ export function createServer(client?: VaultClient): McpServer {
       annotations: { title: 'Save Generated Secret', readOnlyHint: false, openWorldHint: true },
     },
     wrap((args) => saveGeneratedSecret(vaultClient, args)),
+  );
+
+  server.registerTool(
+    'save_login_item',
+    {
+      description:
+        'Save login credentials (username, password, URL, optional TOTP seed) as a Vaultwarden login item ' +
+        'in the mcp-agent-created collection. Use this instead of save_generated_secret when the credential ' +
+        'is a sign-in (username + password), so it surfaces as a real login item with get_totp_code support. ' +
+        'CREATE-only — cannot overwrite an existing item (name collision returns an error). ' +
+        'At least one of username or password is required. ' +
+        'All fields are E2E-encrypted with the vault org key before transmission. ' +
+        'Sets mcp-created-by, mcp-created-at, mcp-expires-at, and mcp-used-in custom fields automatically. ' +
+        'Blocked when READ_ONLY=1. Logs to DRY_RUN without creating a real cipher when DRY_RUN=1.',
+      inputSchema: saveLoginItemInput,
+      annotations: { title: 'Save Login Item', readOnlyHint: false, openWorldHint: true },
+    },
+    wrap((args) => saveLoginItem(vaultClient, args)),
   );
 
   server.registerTool(

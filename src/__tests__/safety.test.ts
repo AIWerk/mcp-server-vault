@@ -320,6 +320,84 @@ describe('Safety Claim 4 — save_generated_secret cannot overwrite', () => {
 });
 
 // ---------------------------------------------------------------------------
+// save_login_item — creates a real login cipher (type 1), CREATE-only,
+// credentials encrypted before transmission.
+// ---------------------------------------------------------------------------
+
+describe('save_login_item — login cipher creation', () => {
+  it('posts a type-1 login cipher with encrypted username/password/uri/totp', async () => {
+    const symKey = makeSymKey();
+    const client = setupClient([], symKey);
+
+    const posted: Record<string, unknown>[] = [];
+    (client as unknown as Record<string, unknown>)['apiPost'] =
+      vi.fn(async (_path: string, body: Record<string, unknown>) => { posted.push(body); return {}; });
+    (client as unknown as Record<string, unknown>)['refetchSync'] = vi.fn(async () => {});
+
+    const result = await client.saveLoginItem({
+      name: 'portal_login',
+      username: 'attila@aiwerk.ch',
+      password: 'PLAINTEXT_PW_9000',
+      uri: 'https://app.example.com/login',
+      totp: 'JBSWY3DPEHPK3PXP',
+    });
+
+    expect(result.collection).toBe('mcp-agent-created');
+    expect(posted).toHaveLength(1);
+    const payload = posted[0] as { cipher: Record<string, unknown>; collectionIds: string[] };
+    expect(payload.cipher.type).toBe(1);  // login, NOT 2 (secure note)
+    expect(payload.collectionIds).toEqual([AGENT_ID]);
+
+    const login = payload.cipher.login as Record<string, string | null>;
+    expect(login.username).toBeTruthy();
+    expect(login.password).toBeTruthy();
+    expect(login.totp).toBeTruthy();
+    expect((payload.cipher.login as { uris: unknown[] }).uris).toHaveLength(1);
+
+    // Credentials must be encrypted, never sent in plaintext.
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain('PLAINTEXT_PW_9000');
+    expect(serialized).not.toContain('attila@aiwerk.ch');
+  });
+
+  it('throws VaultNameCollision when a login name already exists in mcp-agent-created', async () => {
+    const symKey = makeSymKey();
+    const existing = makeCipher({
+      id: 'c-login-existing', name: 'portal_login', type: 1, collectionIds: [AGENT_ID],
+      symKey, password: 'orig',
+    });
+    const client = setupClient([existing], symKey);
+    (client as unknown as Record<string, unknown>)['apiPost'] = vi.fn(async () => ({}));
+
+    await expect(
+      client.saveLoginItem({ name: 'portal_login', username: 'u', password: 'p' }),
+    ).rejects.toThrow(VaultNameCollision);
+  });
+
+  it('refuses a login with neither username nor password', async () => {
+    const symKey = makeSymKey();
+    const client = setupClient([], symKey);
+    (client as unknown as Record<string, unknown>)['apiPost'] = vi.fn(async () => ({}));
+
+    await expect(client.saveLoginItem({ name: 'empty_login' })).rejects.toThrow();
+  });
+
+  it('blocks save_login_item when READ_ONLY=1', async () => {
+    const symKey = makeSymKey();
+    const client = setupClient([], symKey);
+    (client as unknown as Record<string, unknown>)['config'] = {
+      ...((client as unknown as Record<string, unknown>)['config'] as Record<string, unknown>),
+      readOnly: true,
+    };
+    (client as unknown as Record<string, unknown>)['apiPost'] = vi.fn(async () => ({}));
+
+    await expect(
+      client.saveLoginItem({ name: 'x', username: 'u', password: 'p' }),
+    ).rejects.toThrow(VaultWriteForbidden);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // SAFETY CLAIM 5:
 // "Bitwarden Send is created with the requested TTL and max_views."
 // Test fails if revealViaSend ignores the ttl/max_views params or bypasses them.

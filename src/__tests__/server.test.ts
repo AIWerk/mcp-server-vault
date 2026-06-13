@@ -130,7 +130,7 @@ describe('toolError', () => {
 // ---------------------------------------------------------------------------
 
 describe('createServer', () => {
-  it('returns a server with exactly 6 tools', () => {
+  it('returns a server with exactly 7 tools', () => {
     const mockClient = {
       config: {
         region: 'self-hosted' as const,
@@ -152,6 +152,7 @@ describe('createServer', () => {
       revealViaSend: vi.fn(),
       getTotpCode: vi.fn(),
       saveGeneratedSecret: vi.fn(),
+      saveLoginItem: vi.fn(),
       healthCheck: vi.fn(),
       initialize: vi.fn(),
       refetchSync: vi.fn(),
@@ -160,6 +161,6 @@ describe('createServer', () => {
     const server = createServer(mockClient);
     // MCP server has a _registeredTools plain object — we can check its keys
     const tools = (server as unknown as { _registeredTools: Record<string, unknown> })._registeredTools;
-    expect(Object.keys(tools).length).toBe(6);
+    expect(Object.keys(tools).length).toBe(7);
   });
 });

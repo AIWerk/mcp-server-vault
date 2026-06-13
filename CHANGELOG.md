@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-06-12
+
+### Added
+- `save_login_item` tool. Agents can now save sign-in credentials as a real Vaultwarden login item (cipher type 1) instead of a secure note. Accepts `username`, `password`, `uri`, `totp` (seed), `notes`, `used_in`, `expires_in_days`. Requires at least one of username or password. CREATE-only into `mcp-agent-created`, with the same name-collision guard, the same E2E encryption, and READ_ONLY / DRY_RUN honored. Items created this way support `get_totp_code` when a TOTP seed is supplied.
+- 8 new tests (4 tool-layer + 4 real-client): success path, field passthrough, type-1 login-cipher payload with encrypted credentials, name collision, missing-credentials rejection, READ_ONLY block (75 total).
+
 ## [0.1.4] — 2026-05-24
 
 ### Fixed

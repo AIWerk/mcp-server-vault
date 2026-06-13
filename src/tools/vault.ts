@@ -120,6 +120,44 @@ export async function saveGeneratedSecret(client: VaultClient, args: SaveGenerat
 }
 
 // ---------------------------------------------------------------------------
+// save_login_item
+// ---------------------------------------------------------------------------
+
+export const saveLoginItemInput = {
+  name: z.string().min(1).max(200)
+    .describe('Unique name for this login within the mcp-agent-created collection. Case-sensitive. Name collision returns an error — pick a distinct name.'),
+  username: z.string().max(500).optional()
+    .describe('Login username / account identifier. Optional, but at least one of username or password is required.'),
+  password: z.string().max(4096).optional()
+    .describe('Login password (max 4096 chars). Optional, but at least one of username or password is required.'),
+  uri: z.string().max(2000).optional()
+    .describe('Optional login URL (e.g. "https://app.example.com/login"). Stored as the login URI.'),
+  totp: z.string().max(500).optional()
+    .describe('Optional TOTP seed (otpauth:// URI or raw base32 secret). Enables get_totp_code on this item.'),
+  notes: z.string().max(2000).optional()
+    .describe('Optional non-sensitive annotation. Not the credential itself.'),
+  used_in: z.string().max(500).optional()
+    .describe('Free-form context string, e.g. "smallinvoice portal login". Stored as mcp-used-in custom field.'),
+  expires_in_days: z.number().int().min(1).max(365).optional()
+    .describe('Days until the item expires (sets mcp-expires-at). Default 30, max 365.'),
+};
+
+export type SaveLoginItemArgs = {
+  name: string;
+  username?: string;
+  password?: string;
+  uri?: string;
+  totp?: string;
+  notes?: string;
+  used_in?: string;
+  expires_in_days?: number;
+};
+
+export async function saveLoginItem(client: VaultClient, args: SaveLoginItemArgs) {
+  return client.saveLoginItem(args);
+}
+
+// ---------------------------------------------------------------------------
 // health_check
 // ---------------------------------------------------------------------------
 
