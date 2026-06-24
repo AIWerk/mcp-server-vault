@@ -1,0 +1,58 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.AIWerk/mcp-server-vault",
+  "description": "Bitwarden/Vaultwarden for agents: list tagged items, TOTP codes, one-time Sends, save new secrets.",
+  "version": "0.2.1",
+  "repository": {
+    "url": "https://github.com/AIWerk/mcp-server-vault",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@aiwerk/mcp-server-vault",
+      "version": "0.2.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "VAULT_REGION",
+          "description": "Bitwarden region or self-hosted mode (e.g. us, eu, or self-hosted).",
+          "isRequired": true,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "VAULT_API_BASE",
+          "description": "Base URL for self-hosted Vaultwarden, scheme+host only (e.g. https://pass.example.com). Omit for Bitwarden cloud.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "VAULT_CLIENT_ID",
+          "description": "Bitwarden API client_id (personal API key).",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "VAULT_CLIENT_SECRET",
+          "description": "Bitwarden API client_secret (personal API key).",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "VAULT_MASTER_PASSWORD",
+          "description": "Vault master password, used to unlock and decrypt items.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

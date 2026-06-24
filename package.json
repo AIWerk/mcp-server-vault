@@ -1,6 +1,7 @@
 {
   "name": "@aiwerk/mcp-server-vault",
-  "version": "0.2.0",
+  "mcpName": "io.github.AIWerk/mcp-server-vault",
+  "version": "0.2.1",
   "description": "Bitwarden/Vaultwarden MCP server — BYOK vault access with 6 tools, Send-based reveal, TOTP, and safe agent-write",
   "type": "module",
   "main": "dist/src/server.js",
