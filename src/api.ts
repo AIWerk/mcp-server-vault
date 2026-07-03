@@ -300,6 +300,31 @@ export interface HealthResult {
 }
 
 // ---------------------------------------------------------------------------
+// Device identifier
+// ---------------------------------------------------------------------------
+
+// Fixed namespace for AIWerk vault device IDs (arbitrary but constant).
+const DEVICE_ID_NAMESPACE = 'b7f9c1d4-5a3e-4f82-9c06-2e8d17a4b350';
+
+/**
+ * RFC 4122 UUIDv5 (SHA-1) over identityBaseUrl + clientId. The same Vaultwarden
+ * account against the same server always yields the same device identifier, so
+ * the account accumulates exactly one device row regardless of process restarts.
+ */
+export function deriveDeviceIdentifier(config: Pick<VaultConfig, 'identityBaseUrl' | 'clientId'>): string {
+  const ns = Buffer.from(DEVICE_ID_NAMESPACE.replace(/-/g, ''), 'hex');
+  const hash = crypto.createHash('sha1')
+    .update(ns)
+    .update(`${config.identityBaseUrl}|${config.clientId}`)
+    .digest();
+  const b = hash.subarray(0, 16);
+  b[6] = (b[6] & 0x0f) | 0x50; // version 5
+  b[8] = (b[8] & 0x3f) | 0x80; // RFC 4122 variant
+  const h = b.toString('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+// ---------------------------------------------------------------------------
 // VaultClient
 // ---------------------------------------------------------------------------
 
@@ -314,14 +339,19 @@ export class VaultClient {
     agentCreated: null,
   };
   private initialized = false;
-  // Stable per-instance device ID — Vaultwarden 1.32+ and Bitwarden Cloud require
-  // deviceIdentifier to be non-blank in client_credentials auth payloads.
-  private readonly deviceIdentifier = crypto.randomUUID();
+  // Stable device ID — Vaultwarden 1.32+ and Bitwarden Cloud require deviceIdentifier
+  // to be non-blank in client_credentials auth payloads. Must be DETERMINISTIC across
+  // process restarts: the hosted bridge spawns a fresh process per health check, and a
+  // random-per-process ID registers a new Vaultwarden device on every login, triggering
+  // a "New Device Logged In" email each time (~48/day per instance).
+  private readonly deviceIdentifier: string;
   // Cached KDF settings — populated via prelogin() when sync profile omits them
   // (Vaultwarden 1.36.0 does not include KDF fields in /api/sync profile).
   private kdfInfo: KdfSettings | null = null;
 
-  constructor(public readonly config: VaultConfig) {}
+  constructor(public readonly config: VaultConfig) {
+    this.deviceIdentifier = deriveDeviceIdentifier(config);
+  }
 
   // -------------------------------------------------------------------------
   // HTTP helpers

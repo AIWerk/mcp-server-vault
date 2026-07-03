@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { VaultClient, VaultAuthError } from '../api.js';
+import { VaultClient, VaultAuthError, deriveDeviceIdentifier } from '../api.js';
 
 const BASE_CONFIG = {
   region: 'self-hosted' as const,
@@ -102,5 +102,30 @@ describe('authenticate — device fields', () => {
     expect(callCount).toBeGreaterThanOrEqual(2);
     // Same UUID used across all auth calls on this instance
     expect(seenIds.size).toBe(1);
+  });
+});
+
+describe('deriveDeviceIdentifier — deterministic across processes', () => {
+  it('same account + server always yields the same identifier (fresh instances)', () => {
+    const a = new VaultClient({ ...BASE_CONFIG });
+    const b = new VaultClient({ ...BASE_CONFIG });
+    const idA = (a as unknown as Record<string, unknown>)['deviceIdentifier'];
+    const idB = (b as unknown as Record<string, unknown>)['deviceIdentifier'];
+    expect(idA).toBe(idB);
+    // And matches the exported derivation directly
+    expect(idA).toBe(deriveDeviceIdentifier(BASE_CONFIG));
+  });
+
+  it('is a valid RFC 4122 v5 UUID', () => {
+    const id = deriveDeviceIdentifier(BASE_CONFIG);
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('differs per account and per server', () => {
+    const base = deriveDeviceIdentifier(BASE_CONFIG);
+    const otherUser = deriveDeviceIdentifier({ ...BASE_CONFIG, clientId: 'user.other' });
+    const otherHost = deriveDeviceIdentifier({ ...BASE_CONFIG, identityBaseUrl: 'https://vault.example.org/identity' });
+    expect(otherUser).not.toBe(base);
+    expect(otherHost).not.toBe(base);
   });
 });

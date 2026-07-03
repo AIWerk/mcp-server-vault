@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-07-03
+
+### Fixed
+- `deviceIdentifier` was random per process (`crypto.randomUUID()` at class-field init). Environments that spawn a fresh server process per use — e.g. the AIWerk hosted service's 30-minute health check — registered a brand-new Vaultwarden device on every login, flooding the account with phantom device rows and triggering a "New Device Logged In" email on each check. The identifier is now a deterministic RFC 4122 UUIDv5 derived from `identityBaseUrl` + `clientId`, so one account+server pair maps to exactly one device across restarts.
+- 3 new tests: cross-instance determinism, UUIDv5 format (version + variant bits), per-account/per-server uniqueness (78 total).
+
 ## [0.2.0] — 2026-06-12
 
 ### Added
