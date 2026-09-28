@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-09-29
+
+### Security
+- `list_vault_items` returned the first 80 characters of an item's notes as `notes_preview`, and `get_vault_metadata` returned the full notes, for `note` and `login` items. The code treated those two types as non-secret, but on a secure note the notes are the value itself (an API key stored as a note), and a login's notes routinely hold a recovery code or a repository key. Both responses now carry only `has_notes: boolean`; no part of the notes reaches either tool. Anyone who ran either tool on 0.2.2 or earlier should rotate the secrets kept in notes.
+
+### Added
+- `reveal_secret_via_send` accepts `field: "notes"`, so a login's notes stay reachable, but only through a one-time Send URL, like every other secret value.
+
+### Changed
+- Tool descriptions: no long dashes, and `get_vault_metadata` now says that note contents are never returned.
+- 3 new regression tests: a secure note and a login with known notes; neither list nor metadata may contain any 6-character fragment of them, and the notes come back only through the reveal path (81 total).
+
 ## [0.2.2] — 2026-07-03
 
 ### Fixed

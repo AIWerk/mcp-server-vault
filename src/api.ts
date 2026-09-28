@@ -258,7 +258,11 @@ export interface VaultItemSummary {
   has_username: boolean;
   has_totp: boolean;
   has_uris: boolean;
-  notes_preview?: string;
+  /** Whether the item has notes. The notes themselves are never listed:
+   *  on a secure note they ARE the secret, and on a login they often hold
+   *  one (a recovery code, a repository key). Read them via
+   *  reveal_secret_via_send with field "notes". */
+  has_notes: boolean;
   created_at: string;
   expires_at?: string;
   created_by?: string;
@@ -268,7 +272,6 @@ export interface VaultItemDetail extends VaultItemSummary {
   username?: string;
   uris?: string[];
   has_password: boolean;
-  notes?: string;
   custom_fields?: Record<string, string>;
 }
 
@@ -644,13 +647,6 @@ export class VaultClient {
     const hasUris = !!(cipher.login?.uris?.length);
     const hasUsername = !!(cipher.login?.username);
 
-    // For notes_preview: only for non-secret types (login and note)
-    let notesPreview: string | undefined;
-    if ((type === 'note' || type === 'login') && cipher.notes) {
-      const notes = this.decryptStr(cipher.notes, symKey);
-      if (notes) notesPreview = notes.substring(0, 80);
-    }
-
     return {
       name,
       type,
@@ -659,7 +655,7 @@ export class VaultClient {
       has_username: hasUsername,
       has_totp: hasTotp,
       has_uris: hasUris,
-      notes_preview: notesPreview,
+      has_notes: !!cipher.notes,
       created_at: cipher.creationDate,
       expires_at: expiresAt,
       created_by: createdBy,
@@ -728,11 +724,6 @@ export class VaultClient {
       if (uri) uris.push(uri);
     }
 
-    // Notes: only include for note and login types (not api-key or password — those store the secret in notes)
-    let notes: string | undefined;
-    if ((type === 'note' || type === 'login') && cipher.notes) {
-      notes = this.decryptStr(cipher.notes, symKey) ?? undefined;
-    }
 
     const customFields = this.getCustomFields(cipher, symKey);
     // Remove internal mcp-* fields from user-visible custom_fields
@@ -752,8 +743,7 @@ export class VaultClient {
       has_totp: !!(cipher.login?.totp),
       has_uris: !!(cipher.login?.uris?.length),
       has_username: !!(cipher.login?.username),
-      notes,
-      notes_preview: undefined,
+      has_notes: !!cipher.notes,
       created_at: cipher.creationDate,
       expires_at: expiresAt,
       created_by: createdBy,
@@ -780,6 +770,12 @@ export class VaultClient {
       const notes = cipher.notes ? this.decryptStr(cipher.notes, symKey) : null;
       if (notes === null) throw new VaultFieldNotPresent(`Item "${name}" has no value`);
       return notes;
+    }
+
+    if (requestedField === 'notes') {
+      const n = cipher.notes ? this.decryptStr(cipher.notes, symKey) : null;
+      if (n === null) throw new VaultFieldNotPresent(`Item "${name}" has no notes`);
+      return n;
     }
 
     if (requestedField === 'username') {

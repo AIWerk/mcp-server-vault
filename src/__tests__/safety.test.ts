@@ -131,8 +131,8 @@ describe('Safety Claim 1 — list_vault_items and get_vault_metadata never expos
     // These properties must NEVER appear in summary output for api-key type
     expect(item).not.toHaveProperty('value');
     expect(item).not.toHaveProperty('password');
-    // notes_preview must be absent for api-key (it stores the secret in notes)
-    expect(item.notes_preview).toBeUndefined();
+    // no notes content of any kind (api-key stores the secret in notes)
+    expect(item).not.toHaveProperty('notes_preview');
     // The actual secret 'SECRET_VALUE_12345' must not appear anywhere in the serialized response
     const serialized = JSON.stringify(item);
     expect(serialized).not.toContain('SECRET_VALUE_12345');
@@ -147,7 +147,7 @@ describe('Safety Claim 1 — list_vault_items and get_vault_metadata never expos
     const client = setupClient([cipher], symKey);
 
     const detail = await client.getItemDetail('stripe-key');
-    expect(detail.notes).toBeUndefined();
+    expect(detail).not.toHaveProperty('notes');
     const serialized = JSON.stringify(detail);
     expect(serialized).not.toContain('sk_live_SUPERSECRET');
   });
@@ -180,14 +180,75 @@ describe('Safety Claim 1 — list_vault_items and get_vault_metadata never expos
 
     const items = await client.listItems();
     expect(items).toHaveLength(1);
-    expect(items[0].notes_preview).toBeUndefined();
+    expect(items[0]).not.toHaveProperty('notes_preview');
     const serialized = JSON.stringify(items[0]);
     expect(serialized).not.toContain('PLAINTEXT_PASSWORD_SECRET');
 
     const detail = await client.getItemDetail('db-password');
-    expect(detail.notes).toBeUndefined();
+    expect(detail).not.toHaveProperty('notes');
     const detailSerialized = JSON.stringify(detail);
     expect(detailSerialized).not.toContain('PLAINTEXT_PASSWORD_SECRET');
+  });
+
+  // Regression, 2026-09-28: list_vault_items returned the first 80 chars of
+  // the notes as notes_preview, and get_vault_metadata the full notes, for
+  // note and login items. On a secure note the notes ARE the secret (an API
+  // key stored as a note), and a login's notes held a repository key. No part
+  // of the notes may reach either response; only has_notes.
+  describe('notes never leave the vault through list or metadata', () => {
+    const NOTE_SECRET = 'xai-NOTE0123456789abcdefSECRETtoken';
+    const LOGIN_NOTES = 'restic repository key: LOGINrepoKEY9876543210zyx';
+
+    // Every 6-char window of the secret, so a truncated or partial copy fails
+    // the test as well as a verbatim one.
+    function assertNoFragment(serialized: string, secret: string) {
+      for (let i = 0; i + 6 <= secret.length; i++) {
+        expect(serialized).not.toContain(secret.slice(i, i + 6));
+      }
+    }
+
+    function setup() {
+      const symKey = makeSymKey();
+      const note = makeCipher({
+        id: 'n1', name: 'xai-api-key', type: 2, collectionIds: [EXPOSED_ID],
+        symKey, notes: NOTE_SECRET,
+      });
+      const login = makeCipher({
+        id: 'l1', name: 'backup-login', type: 1, collectionIds: [EXPOSED_ID],
+        symKey, password: 'pw-not-under-test', notes: LOGIN_NOTES,
+      });
+      return setupClient([note, login], symKey);
+    }
+
+    it('list_vault_items carries has_notes and no notes content', async () => {
+      const client = setup();
+      const items = await client.listItems();
+      expect(items).toHaveLength(2);
+      for (const item of items) {
+        expect(item.has_notes).toBe(true);
+        expect(item).not.toHaveProperty('notes_preview');
+        expect(item).not.toHaveProperty('notes');
+      }
+      const serialized = JSON.stringify(items);
+      assertNoFragment(serialized, NOTE_SECRET);
+      assertNoFragment(serialized, LOGIN_NOTES);
+    });
+
+    it('get_vault_metadata carries has_notes and no notes content', async () => {
+      const client = setup();
+      for (const [name, secret] of [['xai-api-key', NOTE_SECRET], ['backup-login', LOGIN_NOTES]] as const) {
+        const detail = await client.getItemDetail(name);
+        expect(detail.has_notes).toBe(true);
+        expect(detail).not.toHaveProperty('notes');
+        assertNoFragment(JSON.stringify(detail), secret);
+      }
+    });
+
+    it('the notes stay reachable only through the reveal path', async () => {
+      const client = setup();
+      await expect(client.getItemValue('backup-login', 'notes')).resolves.toBe(LOGIN_NOTES);
+      await expect(client.getItemValue('xai-api-key', 'notes')).resolves.toBe(NOTE_SECRET);
+    });
   });
 
   it('login items: get_vault_metadata returns has_password/has_totp flags but never the values', async () => {

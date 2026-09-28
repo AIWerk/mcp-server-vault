@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.AIWerk/mcp-server-vault",
   "description": "Bitwarden/Vaultwarden for agents: list tagged items, TOTP codes, one-time Sends, save new secrets.",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "repository": {
     "url": "https://github.com/AIWerk/mcp-server-vault",
     "source": "github"
@@ -12,7 +12,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@aiwerk/mcp-server-vault",
-      "version": "0.2.1",
+      "version": "0.2.3",
       "transport": {
         "type": "stdio"
       },

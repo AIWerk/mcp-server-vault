@@ -98,7 +98,7 @@ export function createServer(client?: VaultClient): McpServer {
     {
       description:
         'List vault items from the mcp-exposed and mcp-agent-created collections. ' +
-        'Returns metadata only — secret values are NEVER included. ' +
+        'Returns metadata only. Secret values and note contents are NEVER included (has_notes says whether notes exist). ' +
         'Use reveal_secret_via_send to obtain the actual value through a secure Bitwarden Send URL.',
       inputSchema: listVaultItemsInput,
       annotations: { title: 'List Vault Items', readOnlyHint: true, openWorldHint: true },
@@ -111,8 +111,9 @@ export function createServer(client?: VaultClient): McpServer {
     {
       description:
         'Get full metadata for a named vault item. ' +
-        'Returns name, type, username (for login items), URIs, custom fields, scope, expiry. ' +
-        'Password, TOTP seed, and api-key values are NEVER returned — use reveal_secret_via_send or get_totp_code instead.',
+        'Returns name, type, username (for login items), URIs, custom fields, scope, expiry, and whether the item has notes. ' +
+        'Password, TOTP seed, api-key values and note contents are NEVER returned. ' +
+        'Use reveal_secret_via_send (field "notes" for the notes) or get_totp_code instead.',
       inputSchema: getVaultMetadataInput,
       annotations: { title: 'Get Vault Item Metadata', readOnlyHint: true, openWorldHint: true },
     },
@@ -123,7 +124,7 @@ export function createServer(client?: VaultClient): McpServer {
     'reveal_secret_via_send',
     {
       description:
-        'Reveal a vault secret through a Bitwarden Send — an E2E-encrypted one-time URL. ' +
+        'Reveal a vault secret through a Bitwarden Send, an E2E-encrypted one-time URL. ' +
         'Creates a temporary Send with a configurable TTL and max-views limit. ' +
         'The secret value is encrypted client-side; only the URL fragment (never sent to server) can decrypt it. ' +
         'Blocked when READ_ONLY=1. Logs to DRY_RUN without creating a real Send when DRY_RUN=1.',
@@ -151,7 +152,7 @@ export function createServer(client?: VaultClient): McpServer {
     {
       description:
         'Save an agent-generated secret into the mcp-agent-created collection. ' +
-        'CREATE-only — cannot overwrite an existing item (name collision returns an error). ' +
+        'CREATE-only: cannot overwrite an existing item (name collision returns an error). ' +
         'The secret is E2E-encrypted with the vault org key before transmission. ' +
         'Sets mcp-created-by, mcp-created-at, mcp-expires-at, and mcp-used-in custom fields automatically. ' +
         'Blocked when READ_ONLY=1. Logs to DRY_RUN without creating a real cipher when DRY_RUN=1.',
@@ -168,7 +169,7 @@ export function createServer(client?: VaultClient): McpServer {
         'Save login credentials (username, password, URL, optional TOTP seed) as a Vaultwarden login item ' +
         'in the mcp-agent-created collection. Use this instead of save_generated_secret when the credential ' +
         'is a sign-in (username + password), so it surfaces as a real login item with get_totp_code support. ' +
-        'CREATE-only — cannot overwrite an existing item (name collision returns an error). ' +
+        'CREATE-only: cannot overwrite an existing item (name collision returns an error). ' +
         'At least one of username or password is required. ' +
         'All fields are E2E-encrypted with the vault org key before transmission. ' +
         'Sets mcp-created-by, mcp-created-at, mcp-expires-at, and mcp-used-in custom fields automatically. ' +
