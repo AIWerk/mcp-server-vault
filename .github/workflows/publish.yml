@@ -1,0 +1,55 @@
+# Publish to npm with trusted publishing (OIDC): no npm token anywhere.
+#
+# Inert until npm is told to trust this workflow. One-time setup, needs an
+# interactive npmjs.com login with 2FA by the package owner:
+#   npmjs.com -> @aiwerk/mcp-server-vault -> Settings -> Trusted Publisher
+#   -> GitHub Actions: organization AIWerk, repository mcp-server-vault,
+#      workflow filename publish.yml, environment npm-publish
+# Without that step the publish job fails with an auth error and publishes
+# nothing.
+#
+# Runs when a GitHub release is published. The release tag must match
+# package.json ("v0.2.4" for version 0.2.4), so a release can never publish a
+# version other than the one it is named after.
+#
+# Also runnable by hand (Actions -> Publish -> Run workflow on master). That
+# is how 0.2.3 gets to npm once this is enabled: its release already exists,
+# so no release event will ever fire for it. npm refuses a version it
+# already has, so a stray manual run cannot overwrite anything.
+
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # the OIDC token npm exchanges for a short-lived publish credential
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships an older npm.
+      - run: npm install -g npm@^11.5.1
+      - name: Tag must match package.json
+        if: github.event_name == 'release'
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          if [ "$pkg" != "$GITHUB_REF_NAME" ]; then
+            echo "Release tag $GITHUB_REF_NAME does not match package.json $pkg" >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm publish --access public
