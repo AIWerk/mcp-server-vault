@@ -2,12 +2,27 @@
 
 Bitwarden / Vaultwarden MCP server — BYOK vault access for AI agents.
 
-Exposes 6 tools over stdio. Secret values are **never** sent in plaintext through `list_vault_items` or `get_vault_metadata` — secrets are delivered only through Bitwarden Sends (E2E-encrypted one-time URLs).
+> [!WARNING]
+> **Security: do not use 0.2.2 or earlier.** Those versions returned item notes through `list_vault_items` (first 80 characters) and `get_vault_metadata` (full notes) for secure notes and login items. On a secure note the notes are the secret itself. Fixed in **0.2.3**, which returns only `has_notes`. If you ran either tool on an older version, treat the secrets kept in notes as exposed to your agent's context and its model provider.
+>
+> 0.2.3 is not on npm yet. Install it from the [v0.2.3 GitHub release](https://github.com/AIWerk/mcp-server-vault/releases/tag/v0.2.3) tarball (see Install below). `npx -y @aiwerk/mcp-server-vault` still resolves to the vulnerable 0.2.2.
+
+Exposes 6 tools over stdio. Secret values and note contents are **never** sent in plaintext through `list_vault_items` or `get_vault_metadata`. Secrets are delivered only through Bitwarden Sends (E2E-encrypted one-time URLs).
 
 ## Install
 
+Until 0.2.3 is on npm, install the release tarball:
+
 ```bash
-npx -y @aiwerk/mcp-server-vault
+npx -y https://github.com/AIWerk/mcp-server-vault/releases/download/v0.2.3/aiwerk-mcp-server-vault-0.2.3.tgz
+```
+
+SHA-256 of `aiwerk-mcp-server-vault-0.2.3.tgz`: `6adbedbc3e7ef782e64e0b90b63203049a797fbbf881d081b6a31bc170fe0893`.
+
+Once 0.2.3 is published to npm:
+
+```bash
+npx -y @aiwerk/mcp-server-vault@0.2.3
 ```
 
 ## Configure
