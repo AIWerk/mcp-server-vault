@@ -35,10 +35,12 @@ jobs:
     environment: npm-publish
     steps:
       - uses: actions/checkout@v5
+      # No registry-url here: with it, setup-node writes an .npmrc holding a
+      # placeholder NODE_AUTH_TOKEN, npm sends that instead of using OIDC, and
+      # the registry answers 404. The default registry is npmjs.org anyway.
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
       # Trusted publishing needs npm 11.5.1 or later; Node 22 ships an older npm.
       - run: npm install -g npm@^11.5.1
       - name: Tag must match package.json
