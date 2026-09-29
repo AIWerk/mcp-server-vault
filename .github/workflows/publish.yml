@@ -54,4 +54,6 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - run: npm publish --access public
+      # Verbose, so a failed OIDC exchange says why (a trusted publisher
+      # mismatch otherwise surfaces only as a bare ENEEDAUTH).
+      - run: npm publish --access public --loglevel verbose
